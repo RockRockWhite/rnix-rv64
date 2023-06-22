@@ -1,20 +1,30 @@
 #![no_std]
 #![no_main]
 
-use core::{arch::asm, fmt::Write};
+use core::{
+    arch::{asm, global_asm},
+    fmt::Write,
+};
 
 mod lang_items;
+mod sbi;
+
+global_asm!(include_str!("entry.s"));
 
 #[no_mangle]
-extern "C" fn _start() {
+pub fn rust_main() -> ! {
     println!("Hello, world!");
-    sys_exit(9);
+    // sys_exit(9);
+    sbi::shutdown();
+    loop {}
 }
 
 struct Stdout;
 impl core::fmt::Write for Stdout {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        sys_write(1, s.as_bytes());
+        for c in s.chars() {
+            sbi::console_putchar(c as usize);
+        }
         Ok(())
     }
 }
@@ -37,28 +47,4 @@ macro_rules! println {
     ($fmt: literal $(, $($arg: tt)+)?) => {
         $crate::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
     }
-}
-
-const SYSCALL_EXIT: usize = 93;
-const SYSCALL_WRITE: usize = 64;
-
-fn syscall(id: usize, args: [usize; 3]) -> isize {
-    let mut ret: isize;
-    unsafe {
-        asm!(
-            "ecall",
-            inlateout("x10") args[0] => ret,
-            in("x11") args[1],
-            in("x12") args[2],
-            in("x17") id);
-    }
-    ret
-}
-
-pub fn sys_exit(xstate: i32) -> isize {
-    syscall(SYSCALL_EXIT, [xstate as usize, 0, 0])
-}
-
-pub fn sys_write(fd: usize, buffer: &[u8]) -> isize {
-    syscall(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
 }
