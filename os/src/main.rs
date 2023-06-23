@@ -1,10 +1,7 @@
 #![no_std]
 #![no_main]
 
-use core::{
-    arch::{asm, global_asm},
-    fmt::Write,
-};
+use core::{arch::global_asm, fmt::Write};
 
 mod lang_items;
 mod sbi;
