@@ -5,15 +5,9 @@ _start:
     la sp, boot_stack_top
     call rust_main
 
-.section .bss.stack
+.section .bss.stack               
 .globl boot_stack_bottom
 .globl boot_stack_top
 boot_stack_bottom:
     .space 4096 * 16
 boot_stack_top:
-
-.section .bss
-.globl my_bss_test
-
-my_bss_test:
-    .space 4096 * 16
