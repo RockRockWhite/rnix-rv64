@@ -11,3 +11,33 @@ _start:
 boot_stack_bottom:
     .space 4096 * 16
 boot_stack_top:
+
+.section .text
+.globl test_call
+test_call:
+    addi sp, sp, -8
+    sd ra, 0(sp)
+
+    # li t0 , 0
+    
+    # auipc t0, %pcrel_hi(call_func)
+
+    # jal ra, %pcrel_lo(call_func)
+
+    # jalr ra, t0, %pcrel_lo(call_func)
+    # jalr ra, t0, %pcrel_lo(call_func)
+    # jalr ra, t0, %pcrel_lo(call_func)
+
+    # jalr ra, call_func
+    # call call_func
+    la t0, call_func
+    jalr ra, t0, 0
+
+
+    ld ra, 0(sp)
+    addi sp, sp, 8
+    ret
+
+call_func:
+    li x0, 0x1234
+    ret

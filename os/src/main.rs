@@ -14,6 +14,14 @@ global_asm!(include_str!("entry.s"));
 pub fn rust_main() -> ! {
     clear_bss();
     println!("Hello, world!");
+
+    extern "C" {
+        fn test_call();
+    }
+
+    unsafe { test_call() };
+    println!("back");
+
     sbi::shutdown();
     loop {}
 }
