@@ -16,11 +16,11 @@ pub fn rust_main() -> ! {
     println!("Hello, world!");
 
     extern "C" {
-        fn test_call();
+        fn add_two(a: usize, b: usize) -> usize;
+        fn ebss();
     }
 
-    unsafe { test_call() };
-    println!("back");
+    println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
 
     sbi::shutdown();
     loop {}
