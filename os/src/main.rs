@@ -4,11 +4,13 @@
 
 use core::arch::global_asm;
 
+mod batch;
 mod console;
 mod lang_items;
 mod sbi;
 
 global_asm!(include_str!("entry.s"));
+global_asm!(include_str!("link_app.s"));
 
 #[no_mangle]
 pub fn rust_main() -> ! {
@@ -17,10 +19,12 @@ pub fn rust_main() -> ! {
 
     extern "C" {
         fn add_two(a: usize, b: usize) -> usize;
-        fn ebss();
     }
 
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
+
+    batch::init();
+    batch::test();
 
     sbi::shutdown();
     loop {}
