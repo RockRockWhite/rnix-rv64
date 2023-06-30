@@ -1,9 +1,9 @@
 .altmacro
 .macro SAVE_GP n
-    sd x\n, \n*8(sp)
+    sd x\n, \n * 8(sp)
 .endm
 .macro LOAD_GP n
-    ld x\n, \n*8(sp)
+    ld x\n, \n * 8(sp)
 .endm
 
 .section .text
@@ -44,6 +44,9 @@ __alltraps:
     mv a0, sp
     call trap_handler
 
+    # trap_handler ret
+    # continue
+
 __restore:
     mv sp, a0
 
@@ -61,7 +64,7 @@ __restore:
     .set n, 5
     .rept 27
         LOAD_GP %n
-        .set n, n+1
+        .set n, n + 1
     .endr
 
     # free stack

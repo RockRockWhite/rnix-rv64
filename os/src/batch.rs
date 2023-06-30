@@ -2,8 +2,10 @@
 
 use crate::trap::context::TrapContext;
 use crate::{println, sbi};
+use core::task::Context;
 use core::{arch::asm, cell::RefCell};
 use lazy_static::*;
+use riscv::register::mcause::Trap;
 
 const MAX_APP_NUM: usize = 16;
 const APP_BASE_ADDRESS: usize = 0x80400000;
@@ -19,11 +21,15 @@ impl KernelStack {
         self.0.as_ptr() as usize + KERNEL_STACK_SIZE
     }
 
+    /// push context to kernel stack
     pub fn push_context(&self, ctx: TrapContext) -> &'static mut TrapContext {
+        // 分配空间给 TrapContext
         let ctx_ptr = (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
+        // 填入context数据
         unsafe {
             *ctx_ptr = ctx;
         }
+
         unsafe { ctx_ptr.as_mut().unwrap() }
     }
 }
@@ -164,11 +170,11 @@ pub fn run_next_app() -> ! {
     APP_MANAGER.move_to_next_app();
 
     extern "C" {
-        fn __restore(cx_addr: usize);
+        fn __restore(ctx_addr: usize);
     }
 
     unsafe {
-        __restore(KERNEL_STACK.push_context(TrapContext::app_init_context(
+        __restore(KERNEL_STACK.push_context(TrapContext::from_app_info(
             APP_BASE_ADDRESS,
             USER_STACK.get_sp(),
         )) as *const _ as usize);

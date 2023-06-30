@@ -12,7 +12,7 @@ impl TrapContext {
         self.x[2] = sp;
     }
 
-    pub fn app_init_context(entry: usize, sp: usize) -> Self {
+    pub fn from_app_info(entry: usize, sp: usize) -> Self {
         let mut sstatus = sstatus::read();
         sstatus.set_spp(SPP::User);
 
@@ -21,8 +21,8 @@ impl TrapContext {
             sstatus,
             sepc: entry,
         };
-        ctx.set_sp(sp);
 
+        ctx.set_sp(sp);
         ctx
     }
 }

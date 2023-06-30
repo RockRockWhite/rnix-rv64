@@ -1,5 +1,5 @@
 main.elf : main.s
-	riscv64-elf-gcc -nostdlib -nostdinc -static -g -Ttext 0x80000000 main.s -o main.elf
+	riscv64-elf-gcc -nostdlib -nostdinc -static -g -Ttext 0x80200000 main.s -o main.elf
 
 .PHONY: clean
 clean:
@@ -13,4 +13,6 @@ qemug: main.elf
 	-S -s \
 	-nographic \
 	-bios none \
-	--kernel $<
+	-bios ../bootloader/rustsbi-qemu.bin \
+	-device loader,file=$<,addr=0x80200000
+	# --kernel $<
