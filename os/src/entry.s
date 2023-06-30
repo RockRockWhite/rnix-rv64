@@ -13,9 +13,9 @@ boot_stack_bottom:
     .space 4096 * 16
 boot_stack_top:
 
-
 .section .text
 .globl add_two
 add_two:
     add a0, a0, a1
     ret
+

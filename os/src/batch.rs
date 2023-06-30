@@ -1,12 +1,44 @@
 #![allow(unused)]
 
-use crate::println;
+use crate::trap::context::TrapContext;
+use crate::{println, sbi};
 use core::{arch::asm, cell::RefCell};
 use lazy_static::*;
 
 const MAX_APP_NUM: usize = 16;
 const APP_BASE_ADDRESS: usize = 0x80400000;
 const APP_SIZE_LIMIT: usize = 0x20000;
+const KERNEL_STACK_SIZE: usize = 4096 * 2;
+const USER_STACK_SIZE: usize = 4096 * 2;
+
+#[repr(align(4096))]
+struct KernelStack([u8; KERNEL_STACK_SIZE]);
+
+impl KernelStack {
+    pub fn get_sp(&self) -> usize {
+        self.0.as_ptr() as usize + KERNEL_STACK_SIZE
+    }
+
+    pub fn push_context(&self, ctx: TrapContext) -> &'static mut TrapContext {
+        let ctx_ptr = (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
+        unsafe {
+            *ctx_ptr = ctx;
+        }
+        unsafe { ctx_ptr.as_mut().unwrap() }
+    }
+}
+
+#[repr(align(4096))]
+struct UserStack([u8; USER_STACK_SIZE]);
+
+impl UserStack {
+    pub fn get_sp(&self) -> usize {
+        self.0.as_ptr() as usize + USER_STACK_SIZE
+    }
+}
+
+static KERNEL_STACK: KernelStack = KernelStack([0; KERNEL_STACK_SIZE]);
+static USER_STACK: UserStack = UserStack([0; USER_STACK_SIZE]);
 
 struct AppManager {
     inner: RefCell<AppManagerInner>,
@@ -44,13 +76,14 @@ impl AppManager {
         self.inner.borrow().current_app
     }
 
-    pub fn move_to_next_app(&mut self) {
+    pub fn move_to_next_app(&self) {
         self.inner.borrow_mut().current_app += 1;
     }
 
     unsafe fn load_app(&self, app_id: usize) {
-        if app_id >= MAX_APP_NUM {
-            panic!("illegal app_id");
+        if app_id >= self.inner.borrow().num_app {
+            println!("All applications completed!");
+            sbi::shutdown();
         }
 
         println!(
@@ -125,7 +158,21 @@ pub fn print_app_info() {
     APP_MANAGER.print_app_info();
 }
 
-pub fn test() {
-    unsafe { APP_MANAGER.load_app(1) };
-    println!("app_1 loaded");
+pub fn run_next_app() -> ! {
+    let curr_app = APP_MANAGER.get_current_app();
+    unsafe { APP_MANAGER.load_app(curr_app) };
+    APP_MANAGER.move_to_next_app();
+
+    extern "C" {
+        fn __restore(cx_addr: usize);
+    }
+
+    unsafe {
+        __restore(KERNEL_STACK.push_context(TrapContext::app_init_context(
+            APP_BASE_ADDRESS,
+            USER_STACK.get_sp(),
+        )) as *const _ as usize);
+    }
+
+    unreachable!()
 }

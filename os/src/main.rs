@@ -8,6 +8,8 @@ mod batch;
 mod console;
 mod lang_items;
 mod sbi;
+mod syscall;
+pub mod trap;
 
 global_asm!(include_str!("entry.s"));
 global_asm!(include_str!("link_app.s"));
@@ -23,8 +25,9 @@ pub fn rust_main() -> ! {
 
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
 
+    trap::init();
     batch::init();
-    batch::test();
+    batch::run_next_app();
 
     sbi::shutdown();
     loop {}
