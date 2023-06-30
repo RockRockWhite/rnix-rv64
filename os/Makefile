@@ -13,6 +13,7 @@ OBJDUMP := rust-objdump --arch-name=riscv64
 OBJCOPY := rust-objcopy --binary-architecture=riscv64
 
 $(BUILD)/$(TARGET)/$(MODE)/os: $(SRC)/*
+	@cd ../user && make build
 	cargo build $(MODE_ARG)
 
 $(BUILD)/$(TARGET)/$(MODE)/os.bin: $(BUILD)/$(TARGET)/$(MODE)/os
@@ -22,6 +23,7 @@ test: $(BUILD)/$(TARGET)/$(MODE)/os.bin
 
 .PHONY: clean
 clean:
+	@cd ../user && make clean
 	cargo clean
 
 .PHONY: qemu
