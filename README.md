@@ -2,7 +2,7 @@
 ## About
 基于 [rcore-os](https://github.com/rcore-os/rCore-Tutorial-v3) 的类unix操作系统内核。算是 [rnix-x86](https://github.com/RockRockWhite/rnix-x86) 的延续。
 
-运行ISA：Risc-V 64
+运行ISA：RISC-V 64
 
 ## 进度安排
 - 前期参考RCore先书写基本内容
