@@ -17,6 +17,11 @@ _start:
     addi sp, sp, -4 * 8
 
     csrr t0, sstatus
+    # 设置SPP位为1
+    # 开启这两行会导致ecall进入来自s模式的trap
+    # li t3, 0x100
+    # or t0, t0, t3
+
     la t1, entry
     la t2, user_stack_top
 
@@ -31,10 +36,9 @@ _start:
     # li x17, 0x123
 
 entry:
-    li x0, 0x123
+    li t0, 0x123
+    csrr t0, sscratch
     ecall
-
-
 
 trap_handler:
     ret
