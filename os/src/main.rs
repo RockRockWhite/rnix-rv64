@@ -7,6 +7,7 @@ use core::arch::global_asm;
 mod batch;
 mod console;
 mod lang_items;
+mod loader;
 mod sbi;
 mod syscall;
 pub mod trap;
@@ -26,7 +27,7 @@ pub fn rust_main() -> ! {
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
 
     trap::init();
-    batch::init();
+    loader::load_apps();
     batch::run_next_app();
 
     sbi::shutdown();
