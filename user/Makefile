@@ -9,7 +9,7 @@ BINS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%.bin, $(APPS))
 OBJCOPY := rust-objcopy --binary-architecture=riscv64
 
 elf:
-	cargo build --release
+	python3 build.py
 
 .PHONY: clean
 clean:
