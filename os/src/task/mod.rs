@@ -46,6 +46,8 @@ impl TaskManager {
             let current_task_cx_ptr2 = inner.tasks[current].get_task_ctx_ptr2();
             let next_task_cx_ptr2 = inner.tasks[next].get_task_ctx_ptr2();
 
+            core::mem::drop(inner);
+
             unsafe {
                 __switch(current_task_cx_ptr2, next_task_cx_ptr2);
             }
@@ -67,14 +69,19 @@ impl TaskManager {
     }
 
     fn run_first_task(&self) {
-        let inner = self.inner.borrow_mut();
-        let next_test_ctx_ptr2 = inner.tasks[0].get_task_ctx_ptr2();
+        let mut inner = self.inner.borrow_mut();
+        let mut first_task = inner.tasks[0];
+
+        // set running
+        first_task.task_status = TaskStatus::Running;
+
+        core::mem::drop(inner);
 
         let _unused: usize = 0;
-
         unsafe {
-            __switch(&_unused as *const _, next_test_ctx_ptr2);
+            __switch(&_unused as *const _, first_task.get_task_ctx_ptr2());
         }
+        unreachable!()
     }
 }
 
@@ -95,11 +102,6 @@ lazy_static! {
         TaskManager {
             num_app,
             inner: RefCell::new({
-                extern "C" {
-                    fn _num_app();
-                }
-
-                let num_app = unsafe { (_num_app as *const usize).read_volatile() };
                 TaskManagerInner {
                     tasks,
                     current_task: 0,

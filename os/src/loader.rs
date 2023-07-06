@@ -26,23 +26,21 @@ impl KernelStack {
         trap_ctx: TrapContext,
         task_ctx: TaskContext,
     ) -> &'static mut TaskContext {
-        // 分配空间给 TrapContext
-        let trap_ctx_ptr =
-            (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
-        // 填入context数据
         unsafe {
+            // 分配空间给 TrapContext
+            let trap_ctx_ptr =
+                (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
+            // 填入数据
             *trap_ctx_ptr = trap_ctx;
-        }
 
-        // 分配空间给 TaskContext
-        let task_ctx_ptr =
-            (self.get_sp() - core::mem::size_of::<TaskContext>()) as *mut TaskContext;
-        // 填入context数据
-        unsafe {
+            // 分配空间给 TaskContext
+            let task_ctx_ptr =
+                (trap_ctx_ptr as usize - core::mem::size_of::<TaskContext>()) as *mut TaskContext;
+            // 填入数据
             *task_ctx_ptr = task_ctx;
-        }
 
-        unsafe { task_ctx_ptr.as_mut().unwrap() }
+            task_ctx_ptr.as_mut().unwrap()
+        }
     }
 }
 

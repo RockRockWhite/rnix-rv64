@@ -48,8 +48,6 @@ __alltraps:
     # continue
 
 __restore:
-    mv sp, a0
-
     # recv CSR
     ld t0, 32 * 8(sp)
     ld t1, 33 * 8(sp)

@@ -1,10 +1,10 @@
 .altmacro
 .macro SAVE_SN n
-    sd x\n, (\n + 1) * 8(sp)
+    sd s\n, (\n + 1) * 8(sp)
 .endm
 
 .macro LOAD_SN n
-    ld x\n, (\n + 1) * 8(sp)
+    ld s\n, (\n + 1) * 8(sp)
 .endm
 
 .section .text
