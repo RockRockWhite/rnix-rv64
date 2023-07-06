@@ -4,12 +4,12 @@
 
 use core::arch::global_asm;
 
-mod batch;
 mod console;
 mod lang_items;
 mod loader;
 mod sbi;
 mod syscall;
+mod task;
 pub mod trap;
 
 global_asm!(include_str!("entry.s"));
@@ -28,10 +28,8 @@ pub fn rust_main() -> ! {
 
     trap::init();
     loader::load_apps();
-    batch::run_next_app();
-
-    sbi::shutdown();
-    loop {}
+    task::run_first_task();
+    sbi::shutdown()
 }
 
 pub fn clear_bss() {

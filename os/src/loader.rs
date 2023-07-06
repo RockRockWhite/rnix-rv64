@@ -1,6 +1,10 @@
 use core::arch::asm;
 
-use crate::{println, trap::context::TrapContext};
+use crate::{
+    println,
+    task::{self, context::TaskContext},
+    trap::context::TrapContext,
+};
 
 const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const USER_STACK_SIZE: usize = 4096 * 2;
@@ -8,6 +12,7 @@ const APP_BASE_ADDRESS: usize = 0x80400000;
 const APP_SIZE_LIMIT: usize = 0x20000;
 
 #[repr(align(4096))]
+#[derive(Copy, Clone)]
 struct KernelStack([u8; KERNEL_STACK_SIZE]);
 
 impl KernelStack {
@@ -16,19 +21,33 @@ impl KernelStack {
     }
 
     /// push context to kernel stack
-    pub fn push_context(&self, ctx: TrapContext) -> &'static mut TrapContext {
+    pub fn push_context(
+        &self,
+        trap_ctx: TrapContext,
+        task_ctx: TaskContext,
+    ) -> &'static mut TaskContext {
         // 分配空间给 TrapContext
-        let ctx_ptr = (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
+        let trap_ctx_ptr =
+            (self.get_sp() - core::mem::size_of::<TrapContext>()) as *mut TrapContext;
         // 填入context数据
         unsafe {
-            *ctx_ptr = ctx;
+            *trap_ctx_ptr = trap_ctx;
         }
 
-        unsafe { ctx_ptr.as_mut().unwrap() }
+        // 分配空间给 TaskContext
+        let task_ctx_ptr =
+            (self.get_sp() - core::mem::size_of::<TaskContext>()) as *mut TaskContext;
+        // 填入context数据
+        unsafe {
+            *task_ctx_ptr = task_ctx;
+        }
+
+        unsafe { task_ctx_ptr.as_mut().unwrap() }
     }
 }
 
 #[repr(align(4096))]
+#[derive(Copy, Clone)]
 struct UserStack([u8; USER_STACK_SIZE]);
 
 impl UserStack {
@@ -37,8 +56,10 @@ impl UserStack {
     }
 }
 
-static KERNEL_STACK: KernelStack = KernelStack([0; KERNEL_STACK_SIZE]);
-static USER_STACK: UserStack = UserStack([0; USER_STACK_SIZE]);
+static KERNEL_STACK: [KernelStack; task::MAX_APP_NUM] =
+    [KernelStack([0; KERNEL_STACK_SIZE]); task::MAX_APP_NUM];
+static USER_STACK: [UserStack; task::MAX_APP_NUM] =
+    [UserStack([0; USER_STACK_SIZE]); task::MAX_APP_NUM];
 
 /// load apps
 /// load all user apps into memory
@@ -88,8 +109,17 @@ fn get_base_address(app_id: usize) -> usize {
 }
 
 pub fn init_app_ctx(app_id: usize) -> usize {
-    KERNEL_STACK.push_context(TrapContext::from_app_info(
-        get_base_address(app_id),
-        USER_STACK.get_sp(),
-    )) as *const _ as usize
+    KERNEL_STACK[app_id].push_context(
+        TrapContext::from_app_info(get_base_address(app_id), USER_STACK[app_id].get_sp()),
+        TaskContext::goto_restore(),
+    ) as *const _ as usize
+}
+
+pub fn get_num_app() -> usize {
+    extern "C" {
+        fn _num_app();
+    }
+
+    // read app_num
+    unsafe { (_num_app as *const usize).read_volatile() }
 }

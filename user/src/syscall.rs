@@ -37,3 +37,13 @@ const SYSCALL_EXIT: usize = 93;
 pub fn sys_exit(xstate: i32) -> isize {
     syscall(SYSCALL_EXIT, [xstate as usize, 0, 0])
 }
+
+const SYSCALL_YIELD: usize = 124;
+
+/// sys_yield
+/// 功能：应用主动交出 CPU 所有权并切换到其他应用。
+/// 返回值：总是返回 0。
+/// syscall ID：124
+pub fn sys_yield() -> isize {
+    syscall(SYSCALL_YIELD, [0, 0, 0])
+}

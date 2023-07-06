@@ -43,3 +43,7 @@ pub fn write(fs: usize, buf: &[u8]) -> isize {
 pub fn exit(code: i32) -> isize {
     syscall::sys_exit(code)
 }
+
+pub fn yield_() -> isize {
+    syscall::sys_yield()
+}
