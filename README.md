@@ -12,6 +12,11 @@
 ---
 - [x] 进入内核
 - [x] 批处理操作系统
+- [x] 多道程序
+- [x] 任务协作调度yield
 ---
 ### 批处理系统 batch system
 ![image-20230630135101165](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230630135101165.png)
+
+### 多道程序协作式调度
+![image-20230708181206947](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230708181206947.png)
