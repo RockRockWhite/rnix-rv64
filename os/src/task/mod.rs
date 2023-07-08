@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use self::{switch::__switch, task::TaskControlBlock};
+use self::{switch::switch, task::TaskControlBlock};
 use crate::{loader, task::task::TaskStatus};
 use core::{cell::RefCell, usize};
 use lazy_static::*;
@@ -23,63 +23,75 @@ pub struct TaskManager {
 unsafe impl Sync for TaskManager {}
 
 impl TaskManager {
-    fn mark_current_suspended(&self) {
-        let current = self.inner.borrow().current_task;
-        self.inner.borrow_mut().tasks[current].task_status = TaskStatus::Ready;
+    fn mark_current_exited(&self) {
+        let mut inner = self.inner.borrow_mut();
+        let current_task_id = inner.current_task;
+        inner.tasks[current_task_id].task_status = TaskStatus::Exited;
     }
 
-    fn mark_current_exited(&self) {
-        let current = self.inner.borrow().current_task;
-        self.inner.borrow_mut().tasks[current].task_status = TaskStatus::Exited;
+    fn mark_current_suspended(&self) {
+        let mut inner = self.inner.borrow_mut();
+        let current_task_id = inner.current_task;
+        inner.tasks[current_task_id].task_status = TaskStatus::Ready;
     }
 
     fn run_next_task(&self) {
-        if let Some(next) = self.find_next_task() {
-            let mut inner = self.inner.borrow_mut();
-            let current = inner.current_task;
-            // mark ready
-            inner.tasks[next].task_status = TaskStatus::Running;
-            // mark current task
-            inner.current_task = next;
+        if let Some(next_task_id) = self.find_next_task_id() {
+            let current_task_ctx_ptr2;
+            let next_task_ctx_ptr2;
+            {
+                let mut inner = self.inner.borrow_mut();
 
-            // get task context
-            let current_task_cx_ptr2 = inner.tasks[current].get_task_ctx_ptr2();
-            let next_task_cx_ptr2 = inner.tasks[next].get_task_ctx_ptr2();
+                // get current task ctx
+                let curr_task_id = inner.current_task;
+                let mut current_task = inner.tasks.get_mut(curr_task_id).unwrap();
+                current_task_ctx_ptr2 = current_task.get_task_ctx_ptr2();
 
-            core::mem::drop(inner);
+                // mark task to run's status runnnig
+                // get task to run ctx
+                let mut task_to_run = inner.tasks.get_mut(next_task_id).unwrap();
+                task_to_run.task_status = TaskStatus::Running;
+                next_task_ctx_ptr2 = task_to_run.get_task_ctx_ptr2();
 
+                // update current id
+                inner.current_task = next_task_id;
+            }
+
+            // switch to next task
             unsafe {
-                __switch(current_task_cx_ptr2, next_task_cx_ptr2);
+                switch(current_task_ctx_ptr2, next_task_ctx_ptr2);
             }
         } else {
-            panic!("All applications completed!");
+            panic!("[Kernel] All applications completed!");
         }
     }
 
-    fn find_next_task(&self) -> Option<usize> {
+    fn find_next_task_id(&self) -> Option<usize> {
         let inner = self.inner.borrow();
-        let current = inner.current_task;
+        let current_task_id = inner.current_task;
 
         // 从当前任务往后，找到第一个ready的任务
         // current + 1 开始
         // current + 1 + self.num_app 结束
-        (current + 1..self.num_app + current + 1)
+        (current_task_id + 1..self.num_app + current_task_id + 1)
             .map(|id| id % self.num_app)
             .find(|&id| inner.tasks[id].task_status == TaskStatus::Ready)
     }
 
     fn run_first_task(&self) {
-        let mut inner = self.inner.borrow_mut();
-        let mut first_task = inner.tasks[0];
+        let first_task_ctx_ptr2;
+        {
+            let mut inner = self.inner.borrow_mut();
 
-        // set running
-        first_task.task_status = TaskStatus::Running;
-
-        core::mem::drop(inner);
+            // mark running and get ctx ptr2
+            let mut first_task = inner.tasks.get_mut(0).unwrap();
+            first_task.task_status = TaskStatus::Running;
+            first_task_ctx_ptr2 = first_task.get_task_ctx_ptr2();
+        }
 
         let _unused: usize = 0;
         unsafe {
-            __switch(&_unused as *const _, first_task.get_task_ctx_ptr2());
+            switch(&_unused as *const _, first_task_ctx_ptr2);
         }
         unreachable!()
     }
@@ -111,28 +123,16 @@ lazy_static! {
     };
 }
 
-fn mark_current_suspended() {
-    TASK_MANAGER.mark_current_suspended();
-}
-
-fn mark_current_exited() {
-    TASK_MANAGER.mark_current_exited();
-}
-
-fn run_next_task() {
-    TASK_MANAGER.run_next_task();
-}
-
 pub fn run_first_task() {
     TASK_MANAGER.run_first_task();
 }
 
 pub fn suspend_current_and_run_next() {
-    mark_current_suspended();
-    run_next_task();
+    TASK_MANAGER.mark_current_suspended();
+    TASK_MANAGER.run_next_task();
 }
 
 pub fn exit_current_and_run_next() {
-    mark_current_exited();
-    run_next_task();
+    TASK_MANAGER.mark_current_exited();
+    TASK_MANAGER.run_next_task();
 }
