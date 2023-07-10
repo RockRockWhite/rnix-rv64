@@ -3,15 +3,16 @@
 
 use user_lib::*;
 
-const WIDTH: usize = 10;
-const HEIGHT: usize = 20000;
+const WIDTH: usize = 1000;
+const HEIGHT: usize = 100;
 
 #[no_mangle]
 fn main() -> i32 {
     for i in 0..HEIGHT {
         for _ in 0..WIDTH {
-            print!("C");
+            print!("");
         }
+        print!("C");
         println!("[{}/{}]", i + 1, HEIGHT);
         yield_();
     }

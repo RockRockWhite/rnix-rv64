@@ -14,6 +14,7 @@
 - [x] 批处理操作系统
 - [x] 多道程序
 - [x] 任务协作调度yield
+- [x] 任务抢占调度
 ---
 ### 批处理系统 batch system
 ![image-20230630135101165](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230630135101165.png)
@@ -22,3 +23,6 @@
 ![image-20230708181206947](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230708181206947.png)
 
 ![image-20230710151018052](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230710151018052.png)
+
+### 多道程序抢占式调度 Round Robin
+![image-20230710215211482](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230710215211482.png)

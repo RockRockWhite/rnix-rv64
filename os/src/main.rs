@@ -25,13 +25,14 @@ pub fn rust_main() -> ! {
     extern "C" {
         fn add_two(a: usize, b: usize) -> usize;
     }
-
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
 
     trap::init();
     loader::load_apps();
+
     // enable timer interrupt
     trap::enable_timer_interrupt();
+
     // init timer
     timer::set_next_trigger();
     task::run_first_task();
