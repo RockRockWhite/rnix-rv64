@@ -24,3 +24,16 @@ RISC-V 架构上的 C 语言调用规范可以在 [这里](https://riscv.org/wp-
 - gp(x3) 和 tp(x4) 在一个程序运行期间都不会变化，因此不必放在函数调用上下文中。它们的用途在后面的章节会提到。
 
 ## 任务上下文
+- 任务调度是以函数调用的形式执行的，进入调度函数switch后，ra会保存要回去的指令地址，因此上下文中应保存ra
+- 除此之外，因为任务调度是函数调用，因此应该保存callee-saved寄存器。 `s0` - `s11`
+
+```rust
+/// TaskContext
+/// args:
+///     ra  用于保存ret位置
+///     s   s0-s11寄存器是callee-saved寄存器，由于switch相当于一个函数调用，因此只需保存callee-saved寄存器
+pub struct TaskContext {
+    ra: usize,
+    s: [usize; 12],
+}
+```
