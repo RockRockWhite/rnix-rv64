@@ -1,9 +1,9 @@
-use crate::{println, syscall::syscall, task};
+use crate::{println, syscall::syscall, task, timer};
 use context::TrapContext;
 use core::arch::global_asm;
 use riscv::register::{
     scause::{self, Exception},
-    stval, stvec,
+    sie, stval, stvec,
     utvec::TrapMode,
 };
 
@@ -25,6 +25,13 @@ pub fn trap_handler(ctx: &mut TrapContext) -> &mut TrapContext {
     let stval = stval::read();
 
     match scause.cause() {
+        scause::Trap::Interrupt(scause::Interrupt::SupervisorTimer) => {
+            // 设置下一次时钟中断
+            timer::set_next_trigger();
+            // 进行调度
+            task::suspend_current_and_run_next();
+        }
+
         scause::Trap::Exception(Exception::UserEnvCall) => {
             // sret to the next instrustion
             ctx.sepc += 4;
@@ -50,4 +57,13 @@ pub fn trap_handler(ctx: &mut TrapContext) -> &mut TrapContext {
     }
 
     ctx
+}
+
+/// enable_timer_interrupt
+/// 初始化时钟中断
+/// 设置屏蔽位， 允许supervisor timer中断
+pub fn enable_timer_interrupt() {
+    unsafe {
+        sie::set_stimer();
+    }
 }

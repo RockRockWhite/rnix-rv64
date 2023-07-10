@@ -4,7 +4,7 @@
 use user_lib::*;
 
 const WIDTH: usize = 10;
-const HEIGHT: usize = 5;
+const HEIGHT: usize = 20000;
 
 #[no_mangle]
 fn main() -> i32 {

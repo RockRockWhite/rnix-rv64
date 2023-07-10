@@ -28,3 +28,9 @@ const SBI_CONSOLE_PUTCHAR: usize = 1;
 pub fn console_putchar(ch: usize) {
     sbi_call(SBI_CONSOLE_PUTCHAR, ch, 0, 0);
 }
+
+const SBI_SET_TIMER: usize = 0;
+
+pub fn set_timer(timer: usize) {
+    sbi_call(SBI_SET_TIMER, timer, 0, 0);
+}

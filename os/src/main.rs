@@ -4,12 +4,14 @@
 
 use core::arch::global_asm;
 
+mod boards;
 mod console;
 mod lang_items;
 mod loader;
 mod sbi;
 mod syscall;
 mod task;
+mod timer;
 pub mod trap;
 
 global_asm!(include_str!("entry.s"));
@@ -28,6 +30,10 @@ pub fn rust_main() -> ! {
 
     trap::init();
     loader::load_apps();
+    // enable timer interrupt
+    trap::enable_timer_interrupt();
+    // init timer
+    timer::set_next_trigger();
     task::run_first_task();
     sbi::shutdown()
 }
