@@ -1,13 +1,17 @@
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
+#![feature(alloc_error_handler)]
 
+extern crate alloc;
+use alloc::vec;
 use core::arch::global_asm;
 
 mod boards;
 mod console;
 mod lang_items;
 mod loader;
+pub mod mm;
 mod sbi;
 mod syscall;
 mod task;
@@ -26,6 +30,12 @@ pub fn rust_main() -> ! {
         fn add_two(a: usize, b: usize) -> usize;
     }
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
+
+    mm::init_heap();
+    let vec_test = vec![1, 2, 3, 4, 5];
+    for each in vec_test.iter() {
+        println!("vec_test: {}", each);
+    }
 
     trap::init();
     loader::load_apps();
