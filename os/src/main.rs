@@ -32,10 +32,6 @@ pub fn rust_main() -> ! {
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
 
     mm::init_heap();
-    let vec_test = vec![1, 2, 3, 4, 5];
-    for each in vec_test.iter() {
-        println!("vec_test: {}", each);
-    }
 
     trap::init();
     loader::load_apps();
