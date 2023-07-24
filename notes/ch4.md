@@ -52,7 +52,7 @@ SV39分页机制相当于一个字典树，9 * 3 = 27， 看成是3位字符，�
 ![img](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/pte-rwx.png)
 
 ## SV39 Address Translation
-![img](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/sv39-full.png)
+![image-20230723212821203](https://typora-1303830133.cos.ap-shanghai.myqcloud.com/typora/img/image-20230723212821203.png)
 
 假设我们有虚拟地址 (VPN2,VPN1,VPN0,offset) ：
 

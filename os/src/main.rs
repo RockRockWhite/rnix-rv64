@@ -4,15 +4,16 @@
 #![feature(alloc_error_handler)]
 
 extern crate alloc;
-use alloc::vec;
 use core::arch::global_asm;
 
 mod boards;
-mod console;
+pub mod config;
+pub mod console;
 mod lang_items;
 mod loader;
 pub mod mm;
 mod sbi;
+pub mod sync;
 mod syscall;
 mod task;
 mod timer;
