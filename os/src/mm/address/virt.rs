@@ -48,6 +48,21 @@ impl From<VirtPageNum> for VirtAddr {
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtPageNum(pub usize);
 
+impl VirtPageNum {
+    pub fn indexes(&self) -> [usize; 3] {
+        let mut vpn = self.0;
+        let mut idx = [0usize; 3];
+
+        idx.iter_mut().enumerate().for_each(|(i, each)| {
+            // 一次取9位
+            *each = vpn & 1_1111_1111;
+            vpn >>= 9;
+        });
+
+        idx
+    }
+}
+
 impl From<usize> for VirtPageNum {
     fn from(value: usize) -> Self {
         Self(value)

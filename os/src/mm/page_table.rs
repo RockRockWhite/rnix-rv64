@@ -1,8 +1,13 @@
 #![allow(unused)]
 
+use alloc::vec;
+use alloc::vec::Vec;
 use bitflags::*;
 
-use super::address::PhysPageNum;
+use super::{
+    address::{PhysPageNum, VirtPageNum},
+    frame_allocator::{alloc_frame, FrameTracker},
+};
 
 bitflags! {
     /// Page Table Entry Flags
@@ -67,5 +72,112 @@ impl PageTableEntry {
 
     pub fn executable(&self) -> bool {
         self.flags().contains(PTEFlags::X)
+    }
+}
+
+/// PageTable
+/// frame: for RAII
+pub struct PageTable {
+    root_ppn: PhysPageNum,
+    frames: Vec<FrameTracker>,
+}
+
+impl PageTable {
+    pub fn new() -> Self {
+        // allocate a frame for root page table
+        let frame = alloc_frame().expect("failed to allocate frame for root page table");
+
+        Self {
+            root_ppn: frame.ppn,
+            frames: vec![frame],
+        }
+    }
+
+    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+        let pte = self.fine_pte_create(vpn).unwrap();
+        assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn.0);
+
+        *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
+    }
+
+    pub fn unmap(&mut self, vpn: VirtPageNum) {
+        let pte = self.fine_pte_create(vpn).unwrap();
+        assert!(
+            pte.is_valid(),
+            "vpn {:?} is not mapped before unmapping",
+            vpn.0
+        );
+
+        *pte = PageTableEntry::empty();
+    }
+
+    pub fn fine_pte_create(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+        let idxs = vpn.indexes();
+
+        // get root ppn
+        let mut ppn = self.root_ppn;
+
+        let mut res: Option<&mut PageTableEntry> = None;
+
+        for i in 0..3 {
+            let pte = ppn.get_pte_array().get_mut(idxs[i]).unwrap();
+
+            // the last level
+            if i == 2 {
+                res = Some(pte);
+                break;
+            }
+            // if is invalid, create a new page table
+            if !pte.is_valid() {
+                // allocate a frame for page table
+                let frame = alloc_frame().expect("failed to allocate frame for page table");
+                // set page table entry
+                *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
+                // RAII
+                self.frames.push(frame);
+            }
+        }
+
+        res
+    }
+
+    // only for find page table entry
+    // 用于手动查找页表项
+    pub fn from_token(satp: usize) -> Self {
+        Self {
+            root_ppn: PhysPageNum(satp >> ((1usize << 44) - 1)),
+            frames: Vec::new(),
+        }
+    }
+
+    // only for find page table entry
+    // not create page table
+    fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+        let idxs = vpn.indexes();
+        // get root ppn
+        let mut ppn = self.root_ppn;
+        let mut res: Option<&mut PageTableEntry> = None;
+
+        for i in 0..3 {
+            let pte = ppn.get_pte_array().get_mut(idxs[i]).unwrap();
+
+            // the last level
+            if i == 2 {
+                res = Some(pte);
+                break;
+            }
+            // if is invalid, create a new page table
+            if !pte.is_valid() {
+                return None;
+            }
+        }
+
+        res
+    }
+
+    // only for find page table entry
+    // if found, return a cloned page table entry
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.find_pte(vpn).map(|pte| pte.clone())
     }
 }
