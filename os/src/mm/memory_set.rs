@@ -1,5 +1,5 @@
 #![allow(unused)]
-use crate::mm::address::PAGE_SIZE;
+use crate::{config::MEMORY_END, mm::address::PAGE_SIZE, println};
 
 use super::{
     address::{PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
@@ -155,13 +155,102 @@ impl MemorySet {
         self.push(map_area, None);
     }
 
+    fn map_trampoline(&mut self) {
+        panic!("unimplemented")
+    }
+
     pub fn new_kernel() -> Self {
-        panic!("unimplemented");
-        Self::new_bare()
+        let mut memory_set = Self::new_bare();
+
+        memory_set.map_trampoline();
+
+        println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
+        println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
+        println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
+        println!(
+            ".bss [{:#x}, {:#x})",
+            sbss_with_stack as usize, ebss as usize
+        );
+
+        // map .text section
+        println!("mapping .text section");
+        memory_set.push(
+            MapArea::new(
+                (stext as usize).into(),
+                (etext as usize).into(),
+                MapType::Identical,
+                MapPermission::R | MapPermission::X,
+            ),
+            None,
+        );
+
+        // map .rodata section
+        println!("mapping .rodata section");
+        memory_set.push(
+            MapArea::new(
+                (srodata as usize).into(),
+                (erodata as usize).into(),
+                MapType::Identical,
+                MapPermission::R,
+            ),
+            None,
+        );
+
+        // map .rodata section
+        println!("mapping .data section");
+        memory_set.push(
+            MapArea::new(
+                (sdata as usize).into(),
+                (edata as usize).into(),
+                MapType::Identical,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+
+        // map .rodata section
+        println!("mapping .bss section");
+        memory_set.push(
+            MapArea::new(
+                (sbss_with_stack as usize).into(),
+                (ebss as usize).into(),
+                MapType::Identical,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+
+        // map .rodata section
+        println!("mapping physical section");
+        memory_set.push(
+            MapArea::new(
+                (ekernel as usize).into(),
+                MEMORY_END.into(),
+                MapType::Identical,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+
+        memory_set
     }
 
     pub fn from_elf() -> (Self, usize, usize) {
         panic!("unimplemented");
         (Self::new_bare(), 0, 0)
     }
+}
+
+// 内核的地址空间
+extern "C" {
+    fn stext();
+    fn etext();
+    fn srodata();
+    fn erodata();
+    fn sdata();
+    fn edata();
+    fn sbss_with_stack();
+    fn ebss();
+    fn ekernel();
+    fn strampoline();
 }
