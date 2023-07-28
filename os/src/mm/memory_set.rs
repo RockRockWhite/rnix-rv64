@@ -1,11 +1,16 @@
 #![allow(unused)]
-use crate::{config::MEMORY_END, mm::address::PAGE_SIZE, println};
+use crate::{
+    config::{MEMORY_END, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
+    mm::address::PAGE_SIZE,
+    println,
+};
 
 use super::{
     address::{PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
     frame_allocator::{self, alloc_frame, FrameTracker},
     page_table::{self, PTEFlags, PageTable},
 };
+use _core::mem;
 use alloc::{collections::BTreeMap, vec::Vec};
 use bitflags::*;
 
@@ -160,6 +165,20 @@ impl MemorySet {
     }
 
     pub fn new_kernel() -> Self {
+        // 内核的地址空间
+        extern "C" {
+            fn stext();
+            fn etext();
+            fn srodata();
+            fn erodata();
+            fn sdata();
+            fn edata();
+            fn sbss_with_stack();
+            fn ebss();
+            fn ekernel();
+            fn strampoline();
+        }
+
         let mut memory_set = Self::new_bare();
 
         memory_set.map_trampoline();
@@ -235,22 +254,91 @@ impl MemorySet {
         memory_set
     }
 
-    pub fn from_elf() -> (Self, usize, usize) {
-        panic!("unimplemented");
-        (Self::new_bare(), 0, 0)
-    }
-}
+    pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
+        let mut memory_set = Self::new_bare();
 
-// 内核的地址空间
-extern "C" {
-    fn stext();
-    fn etext();
-    fn srodata();
-    fn erodata();
-    fn sdata();
-    fn edata();
-    fn sbss_with_stack();
-    fn ebss();
-    fn ekernel();
-    fn strampoline();
+        // map trampoline
+        memory_set.map_trampoline();
+
+        // map program headers of elf
+        let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
+        let elf_header = elf.header;
+
+        // check magic
+        let magic = elf_header.pt1.magic;
+        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46]);
+
+        let ph_cnt = elf_header.pt2.ph_count(); // program header count
+        let mut max_end_vpn = VirtPageNum(0);
+
+        (0..ph_cnt).for_each(|i| {
+            let ph = elf.program_header(i).unwrap();
+
+            // only need loadable segments
+            if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
+                let start_va = VirtAddr::from(ph.virtual_addr() as usize);
+                let end_va = VirtAddr::from(ph.virtual_addr() as usize + ph.mem_size() as usize);
+
+                // read permission
+                let mut permission = MapPermission::U;
+                let ph_flags = ph.flags();
+                if ph_flags.is_read() {
+                    permission |= MapPermission::R;
+                }
+                if ph_flags.is_write() {
+                    permission |= MapPermission::W;
+                }
+                if ph_flags.is_execute() {
+                    permission |= MapPermission::X;
+                }
+
+                let area = MapArea::new(start_va, end_va, MapType::Framed, permission);
+                max_end_vpn = area.vpn_range.get_end();
+
+                memory_set.push(
+                    area,
+                    Some(
+                        elf.input
+                            .get(ph.offset() as usize..(ph.offset() + ph.file_size()) as usize)
+                            .unwrap(),
+                    ),
+                );
+            }
+        });
+
+        // map user stack
+        let max_end_va: VirtAddr = max_end_vpn.into();
+        let mut user_stack_bottom: usize = max_end_va.into();
+
+        // guard page
+        user_stack_bottom += PAGE_SIZE;
+        let user_stack_top = user_stack_bottom + USER_STACK_SIZE;
+        memory_set.push(
+            MapArea::new(
+                user_stack_bottom.into(),
+                user_stack_top.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W | MapPermission::U,
+            ),
+            None,
+        );
+
+        // map trap context
+        memory_set.push(
+            MapArea::new(
+                TRAP_CONTEXT.into(),
+                TRAMPOLINE.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+
+        panic!("unimplemented");
+        (
+            memory_set,
+            user_stack_top,
+            elf.header.pt2.entry_point() as usize,
+        )
+    }
 }
