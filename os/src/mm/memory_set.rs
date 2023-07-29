@@ -1,6 +1,6 @@
 #![allow(unused)]
 use super::{
-    address::{PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
+    address::{PhysAddr, PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
     frame_allocator::{self, alloc_frame, FrameTracker},
     page_table::{self, PTEFlags, PageTable},
 };
@@ -163,7 +163,16 @@ impl MemorySet {
     }
 
     fn map_trampoline(&mut self) {
-        panic!("unimplemented")
+        extern "C" {
+            fn strampoline();
+        }
+
+        // 将.text中的strampoline映射到虚拟地址开头处
+        self.page_table.map(
+            VirtAddr::from(TRAMPOLINE).into(),
+            PhysAddr::from(strampoline as usize).into(),
+            PTEFlags::R | PTEFlags::X,
+        )
     }
 
     pub fn new_kernel() -> Self {
@@ -180,11 +189,10 @@ impl MemorySet {
             fn ekernel();
             fn strampoline();
         }
-
         let mut memory_set = Self::new_bare();
-
+        // map trampoline
         memory_set.map_trampoline();
-
+        // map kernel sections
         println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
         println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
         println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
@@ -192,8 +200,6 @@ impl MemorySet {
             ".bss [{:#x}, {:#x})",
             sbss_with_stack as usize, ebss as usize
         );
-
-        // map .text section
         println!("mapping .text section");
         memory_set.push(
             MapArea::new(
@@ -204,8 +210,6 @@ impl MemorySet {
             ),
             None,
         );
-
-        // map .rodata section
         println!("mapping .rodata section");
         memory_set.push(
             MapArea::new(
@@ -216,8 +220,6 @@ impl MemorySet {
             ),
             None,
         );
-
-        // map .rodata section
         println!("mapping .data section");
         memory_set.push(
             MapArea::new(
@@ -228,8 +230,6 @@ impl MemorySet {
             ),
             None,
         );
-
-        // map .rodata section
         println!("mapping .bss section");
         memory_set.push(
             MapArea::new(
@@ -240,9 +240,7 @@ impl MemorySet {
             ),
             None,
         );
-
-        // map .rodata section
-        println!("mapping physical section");
+        println!("mapping physical memory");
         memory_set.push(
             MapArea::new(
                 (ekernel as usize).into(),

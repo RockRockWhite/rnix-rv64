@@ -12,7 +12,7 @@
 # 2^2次方对齐，即4字节对齐
 .align 2
 __alltraps:
-    # must confirm that sscratch: *TrapContext in user space(Constant); 
+    # must confirm that sscratch ptr of TrapContext in user space
     # CSR read and write
     # sscratch -> sp
     # sp -> sscratch
@@ -43,7 +43,7 @@ __alltraps:
     ld t2, 35 * 8(sp)
 
     # switch to kernel stack
-    ld sp, t1
+    mv sp, t1
     # switch to kernel satp
     csrw satp, t0
     sfence.vma
@@ -51,18 +51,18 @@ __alltraps:
     jr t2
 
 __restore:
-    # args:
-    # a0: *TrapContext in user space(Constant); also the top of user stack
-    # a1: user space token
+    # args
+    # a0 ptr of TrapContext in user space
+    # a1 user space token
 
     # switch to user space
     csrw satp, a1
     sfence.vma
 
-    # save *TrapContext to sscratch
+    # save ptr of TrapContext to sscratch
     csrw sscratch, a0
-    # switch to stack that *TrapContext in
-    ld sp, a0
+    # switch to stack that ptr of TrapContext in
+    mv sp, a0
 
     # recv CSR
     ld t0, 32 * 8(sp)

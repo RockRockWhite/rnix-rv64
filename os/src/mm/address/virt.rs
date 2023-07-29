@@ -52,13 +52,10 @@ impl VirtPageNum {
     pub fn indexes(&self) -> [usize; 3] {
         let mut vpn = self.0;
         let mut idx = [0usize; 3];
-
-        idx.iter_mut().enumerate().for_each(|(i, each)| {
-            // 一次取9位
-            *each = vpn & 1_1111_1111;
+        for i in (0..3).rev() {
+            idx[i] = vpn & 0b1_1111_1111;
             vpn >>= 9;
-        });
-
+        }
         idx
     }
 }

@@ -94,14 +94,14 @@ impl PageTable {
     }
 
     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
-        let pte = self.fine_pte_create(vpn).unwrap();
+        let pte = self.find_pte_create(vpn).unwrap();
         assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn.0);
 
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
     }
 
     pub fn unmap(&mut self, vpn: VirtPageNum) {
-        let pte = self.fine_pte_create(vpn).unwrap();
+        let pte = self.find_pte(vpn).unwrap();
         assert!(
             pte.is_valid(),
             "vpn {:?} is not mapped before unmapping",
@@ -111,7 +111,7 @@ impl PageTable {
         *pte = PageTableEntry::empty();
     }
 
-    pub fn fine_pte_create(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+    pub fn find_pte_create(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
         let idxs = vpn.indexes();
 
         // get root ppn
@@ -136,6 +136,7 @@ impl PageTable {
                 // RAII
                 self.frames.push(frame);
             }
+            ppn = pte.ppn();
         }
 
         res
@@ -145,7 +146,7 @@ impl PageTable {
     // 用于手动查找页表项
     pub fn from_token(satp: usize) -> Self {
         Self {
-            root_ppn: PhysPageNum(satp & ((1usize << 44) - 1)),
+            root_ppn: PhysPageNum::from(satp & ((1usize << 44) - 1)),
             frames: Vec::new(),
         }
     }
@@ -170,6 +171,8 @@ impl PageTable {
             if !pte.is_valid() {
                 return None;
             }
+
+            ppn = pte.ppn();
         }
 
         res
