@@ -6,20 +6,18 @@
     ld x\n, \n * 8(sp)
 .endm
 
-.section .text
+.section .text.trampoline
 .globl __alltraps
 .globl __restore
 # 2^2次方对齐，即4字节对齐
 .align 2
 __alltraps:
+    # must confirm that sscratch: *TrapContext in user space(Constant); 
     # CSR read and write
     # sscratch -> sp
     # sp -> sscratch
     # switch(sp, sscratch)
     csrrw sp, sscratch, sp
-
-    # allocate space for trap context
-    addi sp, sp, -34 * 8
 
     # save registers
     # skip x0, x2, x4
@@ -37,24 +35,40 @@ __alltraps:
     sd t0, 32 * 8(sp)
     sd t1, 33 * 8(sp)
 
-    # save user stack sp
-    csrr t2, sscratch
-    sd t2, 2 * 8(sp)
+    # load kernel satp
+    ld t0, 34 * 8(sp)
+    # load kernel_sp
+    ld t1, 35 * 8(sp)
+    # load trap_handler
+    ld t2, 35 * 8(sp)
 
-    mv a0, sp
-    call trap_handler
-
-    # trap_handler ret
-    # continue
+    # switch to kernel stack
+    ld sp, t1
+    # switch to kernel satp
+    csrw satp, t0
+    sfence.vma
+    # jump to trap_handler
+    jr t2
 
 __restore:
+    # args:
+    # a0: *TrapContext in user space(Constant); also the top of user stack
+    # a1: user space token
+
+    # switch to user space
+    csrw satp, a1
+    sfence.vma
+
+    # save *TrapContext to sscratch
+    csrw sscratch, a0
+    # switch to stack that *TrapContext in
+    ld sp, a0
+
     # recv CSR
     ld t0, 32 * 8(sp)
     ld t1, 33 * 8(sp)
-    ld t2, 2 * 8(sp)
     csrw sstatus, t0
     csrw sepc, t1
-    csrw sscratch, t2
 
     # recv general-purpose reg
     ld x1, 1 * 8(sp)
@@ -65,11 +79,8 @@ __restore:
         .set n, n + 1
     .endr
 
-    # free stack
-    addi sp, sp, 34 * 8
-
-    # switch to user stack
-    csrrw sp, sscratch, sp
+    # switch to user stack (recv x2)
+    ld sp, 2 * 8(sp)
 
     sret
 

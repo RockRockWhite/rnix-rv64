@@ -32,10 +32,11 @@ pub fn rust_main() -> ! {
     }
     println!("add_two(1, 2) = {}", unsafe { add_two(12, 13) });
 
-    mm::init_heap();
-
     trap::init();
-    loader::load_apps();
+
+    mm::init_heap();
+    mm::init();
+    mm::remap_test();
 
     // enable timer interrupt
     trap::enable_timer_interrupt();

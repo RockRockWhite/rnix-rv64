@@ -1,18 +1,20 @@
 #![allow(unused)]
-use crate::{
-    config::{MEMORY_END, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
-    mm::address::PAGE_SIZE,
-    println,
-};
-
 use super::{
     address::{PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
     frame_allocator::{self, alloc_frame, FrameTracker},
     page_table::{self, PTEFlags, PageTable},
 };
-use _core::mem;
-use alloc::{collections::BTreeMap, vec::Vec};
+use crate::{
+    config::{MEMORY_END, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
+    mm::address::PAGE_SIZE,
+    println,
+    sync::UPSafeCell,
+};
+use _core::{arch::asm, mem};
+use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use bitflags::*;
+use lazy_static::*;
+use riscv::register::satp;
 
 pub struct MapArea {
     vpn_range: VPNRange,
@@ -334,11 +336,61 @@ impl MemorySet {
             None,
         );
 
-        panic!("unimplemented");
         (
             memory_set,
             user_stack_top,
             elf.header.pt2.entry_point() as usize,
         )
     }
+
+    // load satp csr
+    // flush tlb
+    pub fn activate(&self) {
+        let satp = self.page_table.token();
+
+        unsafe {
+            satp::write(satp);
+            asm!("sfence.vma");
+        }
+    }
+}
+
+lazy_static! {
+    pub static ref KERNEL_SPACE: Arc<UPSafeCell<MemorySet>> =
+        Arc::new(UPSafeCell::new(MemorySet::new_kernel()));
+}
+
+pub fn remap_test() {
+    extern "C" {
+        fn stext();
+        fn etext();
+        fn srodata();
+        fn erodata();
+        fn sdata();
+        fn edata();
+        fn sbss_with_stack();
+        fn ebss();
+        fn ekernel();
+        fn strampoline();
+    }
+    let mut kernel_space = KERNEL_SPACE.exclusive_access();
+    let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
+    let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
+    let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
+    assert!(!kernel_space
+        .page_table
+        .translate(mid_text.floor())
+        .unwrap()
+        .writable(),);
+    assert!(!kernel_space
+        .page_table
+        .translate(mid_rodata.floor())
+        .unwrap()
+        .writable(),);
+    assert!(!kernel_space
+        .page_table
+        .translate(mid_data.floor())
+        .unwrap()
+        .executable(),);
+    println!("[kernel] remap_test passed!");
 }

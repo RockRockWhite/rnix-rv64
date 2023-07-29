@@ -107,7 +107,7 @@ lazy_static! {
         }; MAX_APP_NUM];
 
         (0..num_app).for_each(|id| {
-            tasks[id].task_ctx_ptr = loader::init_app_ctx(id);
+            // tasks[id].task_ctx_ptr = loader::init_app_ctx(id);
             tasks[id].task_status = TaskStatus::Ready;
         });
 

@@ -145,7 +145,7 @@ impl PageTable {
     // 用于手动查找页表项
     pub fn from_token(satp: usize) -> Self {
         Self {
-            root_ppn: PhysPageNum(satp >> ((1usize << 44) - 1)),
+            root_ppn: PhysPageNum(satp & ((1usize << 44) - 1)),
             frames: Vec::new(),
         }
     }
@@ -179,5 +179,11 @@ impl PageTable {
     // if found, return a cloned page table entry
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.find_pte(vpn).map(|pte| pte.clone())
+    }
+
+    // token
+    // gen satp csr
+    pub fn token(&self) -> usize {
+        8usize << 60 | self.root_ppn.0
     }
 }
