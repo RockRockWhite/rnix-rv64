@@ -3,6 +3,7 @@ use super::{
     address::{PhysAddr, PhysPageNum, VPNRange, VirtAddr, VirtPageNum},
     frame_allocator::{self, alloc_frame, FrameTracker},
     page_table::{self, PTEFlags, PageTable},
+    PageTableEntry,
 };
 use crate::{
     config::{MEMORY_END, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
@@ -141,6 +142,9 @@ impl MemorySet {
             areas: Vec::new(),
         }
     }
+    pub fn token(&self) -> usize {
+        self.page_table.token()
+    }
 
     pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
@@ -241,6 +245,7 @@ impl MemorySet {
             None,
         );
         println!("mapping physical memory");
+
         memory_set.push(
             MapArea::new(
                 (ekernel as usize).into(),
@@ -252,6 +257,10 @@ impl MemorySet {
         );
 
         memory_set
+    }
+
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.page_table.translate(vpn)
     }
 
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {

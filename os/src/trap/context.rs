@@ -15,7 +15,7 @@ impl TrapContext {
         self.x[2] = sp;
     }
 
-    pub fn from_app_info(
+    pub fn app_init_context(
         entry: usize,
         sp: usize,
         kernel_satp: usize,

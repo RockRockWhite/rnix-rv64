@@ -1,7 +1,8 @@
 #![allow(unused)]
 
 use self::{switch::switch, task::TaskControlBlock};
-use crate::{loader, task::task::TaskStatus};
+use crate::{loader, println, task::task::TaskStatus, trap::context::TrapContext};
+use alloc::vec::Vec;
 use core::{cell::RefCell, usize};
 use lazy_static::*;
 
@@ -9,9 +10,8 @@ pub mod context;
 mod switch;
 mod task;
 
-pub const MAX_APP_NUM: usize = 16;
 struct TaskManagerInner {
-    tasks: [TaskControlBlock; MAX_APP_NUM],
+    tasks: Vec<TaskControlBlock>,
     current_task: usize,
 }
 
@@ -23,6 +23,18 @@ pub struct TaskManager {
 unsafe impl Sync for TaskManager {}
 
 impl TaskManager {
+    fn get_current_token(&self) -> usize {
+        let mut inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.borrow_mut();
+        let current_task_id = inner.current_task;
+        inner.tasks[current_task_id].get_user_token()
+    }
+
+    fn get_current_ctx(&self) -> &mut TrapContext {
+        let mut inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.borrow_mut();
+        let current_task_id = inner.current_task;
+        inner.tasks[current_task_id].get_trap_ctx()
+    }
+
     fn mark_current_exited(&self) {
         let mut inner = self.inner.borrow_mut();
         let current_task_id = inner.current_task;
@@ -30,7 +42,7 @@ impl TaskManager {
     }
 
     fn mark_current_suspended(&self) {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.borrow_mut();
         let current_task_id = inner.current_task;
         inner.tasks[current_task_id].task_status = TaskStatus::Ready;
     }
@@ -99,16 +111,15 @@ impl TaskManager {
 
 lazy_static! {
     static ref TASK_MANAGER: TaskManager = {
-        let num_app = loader::get_num_app();
+        println!("[kernel] init task manager");
 
-        let mut tasks = [TaskControlBlock {
-            task_ctx_ptr: 0,
-            task_status: TaskStatus::UnInit,
-        }; MAX_APP_NUM];
+        let num_app = loader::get_num_app();
+        println!("num_app = {}", num_app);
+
+        let mut tasks: Vec<TaskControlBlock> = Vec::new();
 
         (0..num_app).for_each(|id| {
-            // tasks[id].task_ctx_ptr = loader::init_app_ctx(id);
-            tasks[id].task_status = TaskStatus::Ready;
+            tasks.push(TaskControlBlock::new(loader::get_app_data(id), id));
         });
 
         TaskManager {
@@ -135,4 +146,12 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     TASK_MANAGER.mark_current_exited();
     TASK_MANAGER.run_next_task();
+}
+
+pub fn current_user_token() -> usize {
+    TASK_MANAGER.get_current_token()
+}
+
+pub fn current_trap_ctx() -> &'static mut TrapContext {
+    TASK_MANAGER.get_current_ctx()
 }

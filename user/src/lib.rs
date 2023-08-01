@@ -10,23 +10,8 @@ mod syscall;
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    clear_bss();
     exit(main());
     unreachable!();
-}
-
-pub fn clear_bss() {
-    extern "C" {
-        fn sbss();
-        fn ebss();
-    }
-
-    // clear bss segment
-    (sbss as usize..ebss as usize)
-        .into_iter()
-        .for_each(|a| unsafe {
-            (a as *mut u8).write_volatile(0);
-        });
 }
 
 #[no_mangle]
