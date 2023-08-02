@@ -1,7 +1,11 @@
 #![allow(unused)]
 
-use self::{switch::switch, task::TaskControlBlock};
-use crate::{loader, println, task::task::TaskStatus, trap::context::TrapContext};
+use self::{switch::__switch, task::TaskControlBlock};
+use crate::{
+    loader, println,
+    task::{context::TaskContext, task::TaskStatus},
+    trap::context::TrapContext,
+};
 use alloc::vec::Vec;
 use core::{cell::RefCell, usize};
 use lazy_static::*;
@@ -49,21 +53,21 @@ impl TaskManager {
 
     fn run_next_task(&self) {
         if let Some(next_task_id) = self.find_next_task_id() {
-            let current_task_ctx_ptr2;
-            let next_task_ctx_ptr2;
+            let current_task_ctx_ptr;
+            let next_task_ctx_ptr;
             {
                 let mut inner = self.inner.borrow_mut();
 
                 // get current task ctx
                 let curr_task_id = inner.current_task;
                 let mut current_task = inner.tasks.get_mut(curr_task_id).unwrap();
-                current_task_ctx_ptr2 = current_task.get_task_ctx_ptr2();
+                current_task_ctx_ptr = &mut current_task.task_ctx as *mut TaskContext;
 
                 // mark task to run's status runnnig
                 // get task to run ctx
                 let mut task_to_run = inner.tasks.get_mut(next_task_id).unwrap();
                 task_to_run.task_status = TaskStatus::Running;
-                next_task_ctx_ptr2 = task_to_run.get_task_ctx_ptr2();
+                next_task_ctx_ptr = &task_to_run.task_ctx as *const TaskContext;
 
                 // update current id
                 inner.current_task = next_task_id;
@@ -71,7 +75,7 @@ impl TaskManager {
 
             // switch to next task
             unsafe {
-                switch(current_task_ctx_ptr2, next_task_ctx_ptr2);
+                __switch(current_task_ctx_ptr, next_task_ctx_ptr);
             }
         } else {
             panic!("[Kernel] All applications completed!");
@@ -91,19 +95,19 @@ impl TaskManager {
     }
 
     fn run_first_task(&self) {
-        let first_task_ctx_ptr2;
+        let first_task_ctx_ptr;
         {
             let mut inner = self.inner.borrow_mut();
 
             // mark running and get ctx ptr2
             let mut first_task = inner.tasks.get_mut(0).unwrap();
             first_task.task_status = TaskStatus::Running;
-            first_task_ctx_ptr2 = first_task.get_task_ctx_ptr2();
+            first_task_ctx_ptr = &first_task.task_ctx as *const TaskContext;
         }
 
-        let _unused: usize = 0;
+        let mut _unused = TaskContext::zero_init();
         unsafe {
-            switch(&_unused as *const _, first_task_ctx_ptr2);
+            __switch(&mut _unused as *mut _, first_task_ctx_ptr);
         }
         unreachable!()
     }
@@ -121,6 +125,8 @@ lazy_static! {
         (0..num_app).for_each(|id| {
             tasks.push(TaskControlBlock::new(loader::get_app_data(id), id));
         });
+
+        println!("test point");
 
         TaskManager {
             num_app,

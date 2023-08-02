@@ -1,11 +1,15 @@
-use core::arch::global_asm;
+//! Rust wrapper around `__switch`.
+//!
+//! Switching to a different task's context happens here. The actual
+//! implementation must not be in Rust and (essentially) has to be in assembly
+//! language (Do you know why?), so this module really is just a wrapper around
+//! `switch.S`.
 
-global_asm!(include_str!("switch.s"));
+core::arch::global_asm!(include_str!("switch.s"));
+use super::context::TaskContext;
 
 extern "C" {
-    fn __switch(current_task_ctx_ptr2: *const usize, next_task_ctx_ptr2: *const usize);
-}
-
-pub unsafe fn switch(current_task_ctx_ptr2: *const usize, next_task_ctx_ptr2: *const usize) {
-    __switch(current_task_ctx_ptr2, next_task_ctx_ptr2)
+    /// Switch to the context of `next_task_cx_ptr`, saving the current context
+    /// in `current_task_cx_ptr`.
+    pub fn __switch(current_task_cx_ptr: *mut TaskContext, next_task_cx_ptr: *const TaskContext);
 }

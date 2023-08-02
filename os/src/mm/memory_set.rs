@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     config::{MEMORY_END, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
-    mm::address::PAGE_SIZE,
+    mm::{address::PAGE_SIZE, StepByOne},
     println,
     sync::UPSafeCell,
 };
@@ -90,25 +90,48 @@ impl MapArea {
         }
     }
 
-    // copy data to the area
-    // if the area is not a framed area, panic
+    // // copy data to the area
+    // // if the area is not a framed area, panic
+    // pub fn copy_data(&mut self, page_table: &mut PageTable, data: &[u8]) {
+    //     assert_eq!(self.map_type, MapType::Framed);
+    //     assert!(
+    //         data.len() <= self.data_frames.len() * PAGE_SIZE,
+    //         "data is too large"
+    //     );
+
+    //     self.vpn_range
+    //         .into_iter()
+    //         .enumerate()
+    //         .for_each(|(index, vpn)| {
+    //             let src = &data[index * PAGE_SIZE..index * PAGE_SIZE + PAGE_SIZE];
+    //             let dst =
+    //                 &mut page_table.translate(vpn).unwrap().ppn().get_bytes_array()[..src.len()];
+
+    //             dst.copy_from_slice(src);
+    //         });
+    // }
+
+    /// data: start-aligned but maybe with shorter length
+    /// assume that all frames were cleared before
     pub fn copy_data(&mut self, page_table: &mut PageTable, data: &[u8]) {
         assert_eq!(self.map_type, MapType::Framed);
-        assert!(
-            data.len() <= self.data_frames.len() * PAGE_SIZE,
-            "data is too large"
-        );
-
-        self.vpn_range
-            .into_iter()
-            .enumerate()
-            .for_each(|(index, vpn)| {
-                let src = &data[index * PAGE_SIZE..index * PAGE_SIZE + PAGE_SIZE];
-                let dst =
-                    &mut page_table.translate(vpn).unwrap().ppn().get_bytes_array()[..src.len()];
-
-                dst.copy_from_slice(src);
-            });
+        let mut start: usize = 0;
+        let mut current_vpn = self.vpn_range.get_start();
+        let len = data.len();
+        loop {
+            let src = &data[start..len.min(start + PAGE_SIZE)];
+            let dst = &mut page_table
+                .translate(current_vpn)
+                .unwrap()
+                .ppn()
+                .get_bytes_array()[..src.len()];
+            dst.copy_from_slice(src);
+            start += PAGE_SIZE;
+            if start >= len {
+                break;
+            }
+            current_vpn.step();
+        }
     }
 }
 
@@ -264,61 +287,55 @@ impl MemorySet {
     }
 
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
+        extern "C" {
+            fn stext();
+            fn etext();
+            fn srodata();
+            fn erodata();
+            fn sdata();
+            fn edata();
+            fn sbss_with_stack();
+            fn ebss();
+            fn ekernel();
+            fn strampoline();
+        }
         let mut memory_set = Self::new_bare();
-
         // map trampoline
         memory_set.map_trampoline();
-
-        // map program headers of elf
+        // map program headers of elf, with U flag
         let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
         let elf_header = elf.header;
-
-        // check magic
         let magic = elf_header.pt1.magic;
-        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46]);
-
-        let ph_cnt = elf_header.pt2.ph_count(); // program header count
+        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
+        let ph_count = elf_header.pt2.ph_count();
         let mut max_end_vpn = VirtPageNum(0);
-
-        (0..ph_cnt).for_each(|i| {
+        for i in 0..ph_count {
             let ph = elf.program_header(i).unwrap();
-
-            // only need loadable segments
             if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
-                let start_va = VirtAddr::from(ph.virtual_addr() as usize);
-                let end_va = VirtAddr::from(ph.virtual_addr() as usize + ph.mem_size() as usize);
-
-                // read permission
-                let mut permission = MapPermission::U;
+                let start_va: VirtAddr = (ph.virtual_addr() as usize).into();
+                let end_va: VirtAddr = ((ph.virtual_addr() + ph.mem_size()) as usize).into();
+                let mut map_perm = MapPermission::U;
                 let ph_flags = ph.flags();
                 if ph_flags.is_read() {
-                    permission |= MapPermission::R;
+                    map_perm |= MapPermission::R;
                 }
                 if ph_flags.is_write() {
-                    permission |= MapPermission::W;
+                    map_perm |= MapPermission::W;
                 }
                 if ph_flags.is_execute() {
-                    permission |= MapPermission::X;
+                    map_perm |= MapPermission::X;
                 }
-
-                let area = MapArea::new(start_va, end_va, MapType::Framed, permission);
-                max_end_vpn = area.vpn_range.get_end();
-
+                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
+                max_end_vpn = map_area.vpn_range.get_end();
                 memory_set.push(
-                    area,
-                    Some(
-                        elf.input
-                            .get(ph.offset() as usize..(ph.offset() + ph.file_size()) as usize)
-                            .unwrap(),
-                    ),
+                    map_area,
+                    Some(&elf.input[ph.offset() as usize..(ph.offset() + ph.file_size()) as usize]),
                 );
             }
-        });
-
-        // map user stack
+        }
+        // map user stack with U flags
         let max_end_va: VirtAddr = max_end_vpn.into();
         let mut user_stack_bottom: usize = max_end_va.into();
-
         // guard page
         user_stack_bottom += PAGE_SIZE;
         let user_stack_top = user_stack_bottom + USER_STACK_SIZE;
@@ -331,8 +348,17 @@ impl MemorySet {
             ),
             None,
         );
-
-        // map trap context
+        // used in sbrk
+        memory_set.push(
+            MapArea::new(
+                user_stack_top.into(),
+                user_stack_top.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W | MapPermission::U,
+            ),
+            None,
+        );
+        // map TrapContext
         memory_set.push(
             MapArea::new(
                 TRAP_CONTEXT.into(),
@@ -342,7 +368,6 @@ impl MemorySet {
             ),
             None,
         );
-
         (
             memory_set,
             user_stack_top,

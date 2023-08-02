@@ -1,53 +1,34 @@
 .altmacro
 .macro SAVE_SN n
-    sd s\n, (\n + 1) * 8(sp)
+    sd s\n, (\n+2)*8(a0)
 .endm
-
 .macro LOAD_SN n
-    ld s\n, (\n + 1) * 8(sp)
+    ld s\n, (\n+2)*8(a1)
 .endm
-
-.section .text
-.global __switch
-
+    .section .text
+    .globl __switch
 __switch:
-    # push TaskContext to current sp and save its address to where a0 points to
-    # args:
-    # current_task_ctx_ptr: ptr<*const TaskContext>   &*const TaskContext,
-    # next_task_ctx_ptr: &*const TaskContext
-    #
-    # pub struct TaskContext 
-    #   ra: usize,
-    #   s:  usize *  12
-    # 
-
-    # allocate space for current_task_ctx
-    add sp, sp, -13 * 8
-
-    # save sp to current_task_ctx_ptr
-    sd sp, 0(a0)
-
-    # save current task context
-    # save ra
-    sd ra, 0 * 8(sp)
-    # save s0-s11
+    # __switch(
+    #     current_task_cx_ptr: *mut TaskContext,
+    #     next_task_cx_ptr: *const TaskContext
+    # )
+    # save kernel stack of current task
+    sd sp, 8(a0)
+    # save ra & s0~s11 of current execution
+    sd ra, 0(a0)
     .set n, 0
     .rept 12
         SAVE_SN %n
         .set n, n + 1
     .endr
-
-    # switch to next task
-    ld sp, 0(a1)
-
-    # rec registers
-    ld ra, 0 * 8(sp)
+    # restore ra & s0~s11 of next execution
+    ld ra, 0(a1)
     .set n, 0
     .rept 12
         LOAD_SN %n
         .set n, n + 1
     .endr
-
-    # pop context
-    add sp, sp, 13 * 8
+    # restore kernel stack of next task
+    ld sp, 8(a1)
     ret
+

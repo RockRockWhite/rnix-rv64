@@ -1,87 +1,69 @@
 .altmacro
 .macro SAVE_GP n
-    sd x\n, \n * 8(sp)
+    sd x\n, \n*8(sp)
 .endm
 .macro LOAD_GP n
-    ld x\n, \n * 8(sp)
+    ld x\n, \n*8(sp)
 .endm
-
-.section .text.trampoline
-.globl __alltraps
-.globl __restore
-# 2^2次方对齐，即4字节对齐
-.align 2
+    .section .text.trampoline
+    .globl __alltraps
+    .globl __restore
+    .align 2
 __alltraps:
-    # must confirm that sscratch ptr of TrapContext in user space
-    # CSR read and write
-    # sscratch -> sp
-    # sp -> sscratch
-    # switch(sp, sscratch)
     csrrw sp, sscratch, sp
-
-    # save registers
-    # skip x0, x2, x4
-    sd x1, 1 * 8(sp)
-    sd x3, 3 * 8(sp)
+    # now sp->*TrapContext in user space, sscratch->user stack
+    # save other general purpose registers
+    sd x1, 1*8(sp)
+    # skip sp(x2), we will save it later
+    sd x3, 3*8(sp)
+    # skip tp(x4), application does not use it
+    # save x5~x31
     .set n, 5
     .rept 27
         SAVE_GP %n
         .set n, n+1
     .endr
-
-    # save csr
+    # we can use t0/t1/t2 freely, because they have been saved in TrapContext
     csrr t0, sstatus
     csrr t1, sepc
-    sd t0, 32 * 8(sp)
-    sd t1, 33 * 8(sp)
-
-    # load kernel satp
-    ld t0, 34 * 8(sp)
-    # load kernel_sp
-    ld t1, 35 * 8(sp)
-    # load trap_handler
-    ld t2, 35 * 8(sp)
-
-    # switch to kernel stack
-    mv sp, t1
-    # switch to kernel satp
+    sd t0, 32*8(sp)
+    sd t1, 33*8(sp)
+    # read user stack from sscratch and save it in TrapContext
+    csrr t2, sscratch
+    sd t2, 2*8(sp)
+    # load kernel_satp into t0
+    ld t0, 34*8(sp)
+    # load trap_handler into t1
+    ld t1, 36*8(sp)
+    # move to kernel_sp
+    ld sp, 35*8(sp)
+    # switch to kernel space
     csrw satp, t0
     sfence.vma
     # jump to trap_handler
-    jr t2
+    jr t1
 
 __restore:
-    # args
-    # a0 ptr of TrapContext in user space
-    # a1 user space token
-
+    # a0: *TrapContext in user space(Constant); a1: user space token
     # switch to user space
     csrw satp, a1
     sfence.vma
-
-    # save ptr of TrapContext to sscratch
     csrw sscratch, a0
-    # switch to stack that ptr of TrapContext in
     mv sp, a0
-
-    # recv CSR
-    ld t0, 32 * 8(sp)
-    ld t1, 33 * 8(sp)
+    # now sp points to TrapContext in user space, start restoring based on it
+    # restore sstatus/sepc
+    ld t0, 32*8(sp)
+    ld t1, 33*8(sp)
     csrw sstatus, t0
     csrw sepc, t1
-
-    # recv general-purpose reg
-    ld x1, 1 * 8(sp)
-    ld x3, 3 * 8(sp)
+    # restore general purpose registers except x0/sp/tp
+    ld x1, 1*8(sp)
+    ld x3, 3*8(sp)
     .set n, 5
     .rept 27
         LOAD_GP %n
-        .set n, n + 1
+        .set n, n+1
     .endr
-
-    # switch to user stack (recv x2)
-    ld sp, 2 * 8(sp)
-
+    # back to user stack
+    ld sp, 2*8(sp)
     sret
-
-
